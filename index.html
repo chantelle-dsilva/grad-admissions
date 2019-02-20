@@ -1,0 +1,640 @@
+<!doctype html>
+<html>
+<head>
+    <style>
+        .bar {
+            fill: #80b1d3;
+        }
+
+        .bar-highlight {
+            fill: orange;
+        }
+
+        .pie-highlight {
+            fill: orange;
+        }
+
+        .node {}
+
+        .link { stroke: #999; stroke-opacity: .6; stroke-width: 1px; }
+
+
+	</style>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="//d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
+<script src="http://d3js.org/d3-selection-multi.v1.js"></script>
+<script src="https://unpkg.com/d3-simple-slider/build/d3-simple-slider.js"></script>
+
+<link
+  rel="stylesheet"
+  href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+  integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO"
+  crossorigin="anonymous"
+/>
+
+</head>
+<body>
+<svg width="1000" height="625"></svg>
+
+<select id = "dropdown">
+	  <option selected value=gre>GRE</option>
+	  <option value=toefl>TOEFL</option>
+	  <option value=uni_rating>University Rating</option>
+	  <option value=sop>SOP</option>
+	  <option value=lor>LOR</option>
+	  <option value=cgpa>CGPA</option>
+	  <option value=research>Past Research</option>
+	  <option value=admit_chance>Chance of Admission</option>
+</select>
+<div class="row align-items-center" style = "padding-left: 350">
+<div class="col-sm-3">
+</div>
+<div class="col-sm-4"  >
+	<button id = "FDL" style=""> Forced Directed Layout </button>
+	<button id = orig> Return to Original </button>	
+</div>
+<div class="col-sm-5">
+</div>
+</div>
+<div class="row align-items-center" >
+    <div class="col-sm-2"><p id="value-step"></p></div>
+    <div class="col-sm"><div id="slider-step"></div></div>
+</div>
+
+
+<script>
+
+	var svg = d3.select("svg"),
+        margin = 200,
+        width = svg.attr("width") - margin,
+        height = svg.attr("height") - margin;
+
+    svg.append("text")
+       .attr("transform", "translate(360,0)")
+       .attr("x", 50)
+       .attr("y", 50)
+       .attr("font-size", "24px")
+       .text("Graduate Admission Data")
+
+
+    var x = d3.scaleBand().range([0, width]).padding(0.4);
+        y = d3.scaleLinear().range([height, 0]);
+
+    var g = svg.append("g")
+            .attr("transform", "translate(" + 100 + "," + 100 + ")");
+
+
+    var toggle = 0;
+    var sliderValue = 5;
+
+    d3.csv("data/admissions.csv", function(error, data) {
+        if (error) {
+            throw error;
+        }
+
+        function update(selected, toggle, sliderValue){
+
+    		//remove slider elements as different slider for different attribute
+    		d3.selectAll(".slider").remove()
+
+    		//Forced Directed Layout : http://bl.ocks.org/fancellu/2c782394602a93921faff74e594d1bb1
+
+
+    		d3.selectAll("#FDL")
+    		.attr("style" ,"padding-left:300")
+    		.on("click", function(d){
+
+    			d3.selectAll("g").remove();
+    			var g = svg.append("g")
+	            					.attr("transform", "translate(" + 100 + "," + 100 + ")");
+
+	            var node, link;
+	            var colors = d3.scaleOrdinal(d3.schemeCategory10);
+
+	            g.append('defs').append('marker')
+				        .attrs({'id':'arrowhead',
+				            'viewBox':'-0 -5 10 10',
+				            'refX':13,
+				            'refY':0,
+				            'orient':'auto',
+				            'markerWidth':13,
+				            'markerHeight':13,
+				            'xoverflow':'visible'})
+				        .append('svg:path')
+				        .attr('d', 'M 0,-5 L 10 ,0 L 0,5')
+				        .attr('fill', '#999')
+				        .style('stroke','none');
+
+			    var simulation = d3.forceSimulation()
+			        .force("link", d3.forceLink().id(function (d) {return d.id;}).distance(100).strength(1))
+			        .force("charge", d3.forceManyBody())
+			        .force("center", d3.forceCenter(width / 2, height / 2));
+
+    			d3.json("data/graph.json", function(error, graph) {
+    				if (error) throw error;
+        			updateFDL(graph.links, graph.nodes);
+
+    			});
+
+    			function updateFDL(links, nodes) {
+			        link = g.selectAll(".link")
+			            .data(links)
+			            .enter()
+			            .append("line")
+			            .attr("class", "link")
+			            //.attr('marker-end','url(#arrowhead)')
+
+			        link.append("title")
+			            .text(function (d) {return d.type;});
+
+			        edgepaths = g.selectAll(".edgepath")
+			            .data(links)
+			            .enter()
+			            .append('path')
+			            .attrs({
+			                'class': 'edgepath',
+			                'fill-opacity': 0,
+			                'stroke-opacity': 0,
+			                'id': function (d, i) {return 'edgepath' + i}
+			            })
+			            .style("pointer-events", "none");
+
+			        edgelabels = g.selectAll(".edgelabel")
+			            .data(links)
+			            .enter()
+			            .append('text')
+			            .style("pointer-events", "none")
+			            .attrs({
+			                'class': 'edgelabel',
+			                'id': function (d, i) {return 'edgelabel' + i},
+			                'font-size': 10,
+			                'fill': '#aaa'
+			            });
+
+			        edgelabels.append('textPath')
+			            .attr('xlink:href', function (d, i) {return '#edgepath' + i})
+			            .style("text-anchor", "middle")
+			            .style("pointer-events", "none")
+			            .attr("startOffset", "50%")
+			            .text(function (d) {return d.type});
+
+			        node = g.selectAll(".node")
+			            .data(nodes)
+			            .enter()
+			            .append("g")
+			            .attr("class", "node")
+			            .call(d3.drag()
+			                    .on("start", dragstarted)
+			                    .on("drag", dragged)
+			                    //.on("end", dragended)
+			            );
+
+			        node.append("circle")
+			            .attr("r", 5)
+			            .style("fill", function (d, i) {return colors(i);})
+
+			        node.append("title")
+			            .text(function (d) {return d.id;});
+
+			        node.append("text")
+			            .attr("dy", -3)
+			            .text(function (d) {return d.name;});
+
+			        simulation
+			            .nodes(nodes)
+			            .on("tick", ticked);
+
+			        simulation.force("link")
+			            .links(links);
+			    }
+
+			    function ticked() {
+			        link
+			            .attr("x1", function (d) {return d.source.x;})
+			            .attr("y1", function (d) {return d.source.y;})
+			            .attr("x2", function (d) {return d.target.x;})
+			            .attr("y2", function (d) {return d.target.y;});
+
+			        node
+			            .attr("transform", function (d) {return "translate(" + d.x + ", " + d.y + ")";});
+
+			        edgepaths.attr('d', function (d) {
+			            return 'M ' + d.source.x + ' ' + d.source.y + ' L ' + d.target.x + ' ' + d.target.y;
+			        });
+
+			        edgelabels.attr('transform', function (d) {
+			            if (d.target.x < d.source.x) {
+			                var bbox = this.getBBox();
+
+			                rx = bbox.x + bbox.width / 2;
+			                ry = bbox.y + bbox.height / 2;
+			                return 'rotate(180 ' + rx + ' ' + ry + ')';
+			            }
+			            else {
+			                return 'rotate(0)';
+			            }
+			        });
+			    }
+
+			    function dragstarted(d) {
+			        if (!d3.event.active) simulation.alphaTarget(0.3).restart()
+			        d.fx = d.x;
+			        d.fy = d.y;
+			    }
+
+			    function dragged(d) {
+			        d.fx = d3.event.x;
+			        d.fy = d3.event.y;
+			    }
+
+    			  
+    		});
+
+			d3.selectAll("#orig")
+    		.on("click", function(d){
+    			toggle ^= 1;
+    			update(d3.select('#dropdown option:checked').text(), toggle, sliderValue);  
+    		});
+
+			//preprocessing - based on option
+			console.log(d3.select('#dropdown option:checked').text());
+			switch(selected){
+				case 'GRE' : var feature = "gre";
+							 var max = 340;
+							 var min = 290;
+							 break;
+				case 'TOEFL' : var feature = "toefl"; 
+								var max = 120;
+							 	var min = 90;
+							    break;
+				case 'University Rating' : var feature = "uni_rating";
+								 var max = 5;
+							 	 var min = 1;
+								 break;
+				case 'SOP' : var feature = "sop"; 
+								 var max = 5;
+							 	 var min = 1;
+								 break;
+				case 'LOR' : var feature = "lor"; 
+								 var max = 5;
+								 var min = 1;
+							 	 break;
+				case 'CGPA' : var feature = "cgpa";
+							  var max = 9.92;
+							  var min = 6.8;
+							  break;
+				case 'Past Research' : var feature = "research";
+									   var max = 0;
+							  		   var min = 1;
+									   break;
+				case 'Chance of Admission' : var feature = "chance"; 
+											var max = 97;
+							  		   		var min = 34;
+											break;
+				default : break;
+			}
+			
+			var numberBins = Math.round(sliderValue);
+			//var min = d3.min(data, function(d,i) { return d[feature];})
+			//var max = d3.max(data, function(d,i) { return d[feature];});
+			
+			var bin_size = (max - min) / numberBins;
+			//console.log(numberBins);
+
+			var idx = 0;
+
+			var counts = {};
+	        data.forEach(function(d) {
+	        	var rangeData = d;
+	        	if ((selected == 'Chance of Admission')&&(d[feature] <= 1))
+	        		rangeData[feature] *= 100; 
+	        	//round part just to format to 1 decimal place without getting 10 as 10.0
+	        	idx = Math.round((Number(min) + (bin_size)*Math.floor((rangeData[feature] - min)/bin_size))*100)/100;
+	        	counts[idx] = counts[idx] ? counts[idx] + 1 : 1
+	  		});
+	  		//console.log(counts);
+	  		//console.log(bin_size);
+
+	        var nonRangeVals = [];
+	  		for (let prop in counts) {
+				nonRangeVals.push({
+			        option: prop,
+			        count: counts[prop],
+			    });
+			}
+
+			//sorting items in count_data
+			function compare(a,b) {
+			  return (Number(a.option) > Number(b.option))? 1:(Number(a.option) == Number(b.option))?0:-1;
+			}
+
+			nonRangeVals.sort(compare);
+			//console.log(nonRangeVals);
+
+			count_data = [];
+			for(var i = 0; i < nonRangeVals.length-2; i++){
+				count_data.push({
+					option: nonRangeVals[i].option + " - " + nonRangeVals[i+1].option,
+					count: nonRangeVals[i].count
+				});
+			}
+
+			if (selected != "Past Research" || numberBins == 1){
+				count_data.push({
+						option: nonRangeVals[i].option + " - " + nonRangeVals[i+1].option,
+						count: nonRangeVals[i].count + nonRangeVals[i+1].count
+					});
+			}
+			else{
+				count_data.push({
+					option: 0 + " - " + 0.5,
+					count: nonRangeVals[0].count
+				});
+
+				count_data.push({
+					option: 0.5 + " - " + 1,
+					count: nonRangeVals[1].count
+				});
+			}
+			console.log(count_data);
+
+			x.domain(count_data.map(function(d,i) { return d.option }));
+			y.domain([0, d3.max(count_data, function(d,i) { return d.count;})]);
+
+
+			//To redraw graph for new attribute - reference : https://bl.ocks.org/GerardoFurtado/40c4a36d48e6dfaa30f0325f2973098f/fd2f8c76bf3cbaf6b57c34dfc2f00b0d394079ac - without separating data section and enter section it didn't work
+			
+			if(toggle == 0){
+				d3.selectAll("g").remove();
+				var g = svg.append("g")
+	            					.attr("transform", "translate(" + 100 + "," + 100 + ")");
+
+				var rect = g.selectAll('g')
+	    					.data(count_data);
+
+				var rectEnter = rect.enter()
+									.append('g')
+								    .append('rect')
+								    .merge(rect)
+								    .attr("class", "bar") 
+		         					.on("mouseover", onMouseOver) 
+		         					.on("mouseout", onMouseOut)   //done to apply animation when mouse hovers over a particular bar and goes out
+								    .attr('x', (d) => x(d.option))
+								    .attr('y', d => y(d.count))
+								    .attr('width', x.bandwidth())
+								    .transition()
+							        .ease(d3.easeLinear)
+							        .duration(400)
+							        .delay(function (d, i) {
+							             return i * 50;
+							         })
+								    .attr('height', d => height - y(d.count));
+				//not there in reference but wouldnt remove overlapping - use to remove old chart elements
+				rect.exit().remove()						
+
+
+		        // draw axes
+
+
+				g.append("g")
+			     .attr("transform", "translate(0," + height + ")")
+		         .call(d3.axisBottom(x).tickFormat(function(d){
+		             return  d;
+		         }).ticks(10))
+		         .append("text")
+		         .attr("y", 40)
+		         .attr("x", 400)
+		         .attr("text-anchor", "middle")
+		         .attr("stroke", "black")
+		         .text(selected);
+				
+		        g.append("g")
+		         .call(d3.axisLeft(y).tickFormat(function(d){
+		             return  d;
+		         }).ticks(10))
+		         .append("text")
+		         .attr("transform", "rotate(-90)")
+		         .attr("y", 8)
+		         .attr("x", -150)
+		         .attr("dy", "-5.1em")
+		         .attr("text-anchor", "middle")
+		         .attr("stroke", "black")
+		         .text("Count");
+
+		         toggle = 1;
+		        
+	    	}
+	        else if(toggle == 1){
+	        		d3.selectAll("g").remove();
+
+			    	var pie = d3.pie()
+			    				.sort(null) //sorts values - makes transition nice
+			    				.value(function (d){return d.count});
+
+			    	var slices = pie(count_data);
+			    	var arcGen = d3.arc()
+			    				.innerRadius(75)
+			    				.outerRadius(200);
+
+			    	var color = d3.scaleOrdinal(d3.schemeSet3);
+			    	//			.range(["red", "yellow", "green"]);
+
+			    	var g = svg.append("g")
+			            	   .attr("transform", "translate(" + 535 + "," + 320 + ")");
+
+			        g.selectAll('path.slice')
+					  .data(slices)
+					  .enter()
+					  .append('path')
+					  .transition()
+					  .ease(d3.easeLinear)
+					  .duration(400)
+					  .delay(function (d, i) {
+							             return i * 100;
+							         })
+					  .attr('class', 'slice')
+					  .attr('d', arcGen)
+					  .attr('fill', function(d,i) {
+					          return color(i);
+					        });	
+
+					  d3.selectAll("path")
+					  	.on("mouseover", function(d,i){
+					  		d3.select(this).attr('class', 'pie-highlight'); 
+					        var sliceData = d;
+
+					        //calculating adj, opp, hyp for angle
+					        var c = arcGen.centroid(d);
+					        var xLabel = c[0];
+					        var yLabel = c[1];
+					        // pythagorean theorem for hypotenuse
+					        hLabel = Math.sqrt(xLabel*xLabel + yLabel*yLabel);
+
+
+					        var arc = d3.arc()
+					    				.innerRadius(75)
+					    				.outerRadius(220);
+
+					        d3.select(this)
+					          .transition()     // adds animation
+					          .duration(400)
+					          .attr('d', arc);
+
+					        g.append("text")
+					         .attr('class', 'valu')
+					         .attr("text-anchor", function(d) {
+						        return ((sliceData.endAngle + sliceData.startAngle)/2 > Math.PI) ?
+						            "end" : "start";
+						    })
+					         .attr("transform", function(d) {
+							    return "translate(" + (xLabel/hLabel * 240) +  ',' +
+							       (yLabel/hLabel * 240 ) +  ")"; 
+								})
+					         .text(function() {
+					             return "Score of " + d.data.option + " : " + d.data.count;  // Value of the text
+					         });
+
+					  	})
+					  	.on("mouseout", onSliceOut);
+					  toggle = 0;
+	        }
+
+	        svg.on("click", function(){
+	        	update(d3.select('#dropdown option:checked').text(), toggle, sliderValue);  	
+	        });
+
+	        //Set max and min value of slider depending on attribute
+
+	        switch(selected){
+				case 'GRE' : var maxSlider = 50;
+							 var minSlider = 1;
+							 var step = 1;
+							 break;
+				case 'TOEFL' : var maxSlider = 30;
+							   var minSlider = 1;
+							   break;
+				case 'University Rating' : var maxSlider = 4;
+							   			   var minSlider = 1;
+							   			   var step = 1;
+							     		   break;
+				case 'SOP' : var maxSlider = 5;
+							 var minSlider = 1;
+							 var step = 1;
+							 break;
+								 
+				case 'LOR' : var maxSlider = 5;
+							 var minSlider = 1;
+							 var step = 1;
+							 break;
+								 
+				case 'CGPA' : var maxSlider = 30;
+							  var minSlider = 1;
+							  var step = 0.1;
+							  break;
+							  
+				case 'Past Research' : var maxSlider = 2;
+							  		   var minSlider = 1;
+							    	   var step = 1;
+							  		   break;
+				case 'Chance of Admission' : var maxSlider = 60;
+							  		  		 var minSlider = 1;
+							    	 		 var step = 1;
+							  		   		 break;
+				default : break;
+			}
+
+	        
+			//Slider : reference = https://github.com/johnwalley/d3-simple-slider
+	        var sliderStep = d3.sliderBottom()
+						    .min(minSlider)
+						    .max(maxSlider)
+						    .width(300)
+						    .ticks(5)
+						    .step(step)
+						    .default(sliderValue)
+						    .on('onchange', val => {
+						      sliderValue = val;
+						    })
+						    .on('end', function(val) {
+						    	toggle ^= 1; 
+						     	update(d3.select('#dropdown option:checked').text(), toggle, sliderValue);
+						    });
+
+			var gStep = d3.select('div#slider-step')
+					    .append('svg')
+					    .attr('width', 500)
+					    .attr('height', 100)
+					    .attr('class', 'slider')
+					    .attr("transform", "translate(110,0)")
+					    .append('g')
+			    		.attr('transform', 'translate(30,30)');
+
+			gStep.call(sliderStep);
+
+			//d3.select('p#value-step').text((sliderStep.value()));	         
+			
+        }
+
+        update(d3.select('#dropdown option:checked').text(), toggle, sliderValue);
+
+        d3.select("#dropdown").on("input", function() {
+        	//toggle ^= 1; 
+    		update(d3.select('#dropdown option:checked').text(), toggle, sliderValue);
+  		});
+    });
+
+   //mouseover|mouseout events -  referred to TAs sample code
+    function onMouseOver(d, i) {
+        d3.select(this).attr('class', 'bar-highlight'); //this = selected bar - returns only one node
+        d3.select(this)
+          .transition()     // adds animation
+          .duration(400)
+          .attr('width', x.bandwidth() + 5)
+          .attr("y", function(d,i) { return y(d.count) - 10; })
+          .attr("height", function(d,i) { return height - y(d.count) + 10; });
+
+        //this points to rect - need it to point to the <g> wrapper in order to add text (text cannot be added to rect), see this: https://stackoverflow.com/questions/42423749/display-text-at-the-top-of-bar-and-change-x-axis-text-color-in-d3
+        d3.select(this.parentNode)
+         .append("text")
+         .attr('class', 'val')
+         .attr('x', function() {
+             return x(d.option) ;
+         })
+         .attr('y', function() {
+             return y(d.count) - 15;
+         })
+         .text(function() {
+             return [+d.count];  // Value of the text
+         });
+    }
+
+    function onMouseOut(d, i) {
+        d3.select(this).attr('class', 'bar');
+        d3.select(this)
+          .transition()     // adds animation
+          .duration(400)
+          .attr('width', x.bandwidth())
+          .attr("y", function(d,i) { return y(d.count); }) // What if we don't again fix this Value ?
+          .attr("height", function(d,i) { return height - y(d.count); }); // Play with changing the Value
+
+        d3.selectAll('.val').remove()
+    }
+
+
+    function onSliceOut(d, i) {
+        d3.select(this).attr('class', 'slice');
+        var arc = d3.arc()
+    				.innerRadius(75)
+    				.outerRadius(200);
+
+        d3.select(this)
+          .transition()     // adds animation
+          .duration(400)
+          .attr('d', arc);
+
+        d3.selectAll('.valu').remove()
+    }
+
+</script>
+</body>
+</html>
